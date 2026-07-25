@@ -23,9 +23,13 @@ SDK="${ROCM_PATH:-/home/jmonk/miniconda3/envs/qat714/lib/python3.12/site-package
 HIPCC="$SDK/bin/hipcc"; [ -x "$HIPCC" ] || HIPCC="$(command -v hipcc)"
 
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
-cp "$SRC" "$TMP/k.hip"
+# Compile the source IN PLACE with -I on its own dir so local #includes (sibling
+# headers like decode_common.hpp) resolve; run from TMP so --save-temps lands the
+# device .s there. (Copying only the .hip to a tempdir loses its headers.)
+ABS="$(cd "$(dirname "$SRC")" && pwd)/$(basename "$SRC")"
+SRCDIR="$(dirname "$ABS")"
 echo ">> compiling $SRC for $ARCH (feature-gate errors below are DIAGNOSTIC, not noise):"
-"$HIPCC" --offload-arch="$ARCH" -O3 --save-temps -c -o "$TMP/k.o" "$TMP/k.hip" 2>&1 \
+( cd "$TMP" && "$HIPCC" --offload-arch="$ARCH" -O3 -I"$SRCDIR" --save-temps -c -o k.o "$ABS" ) 2>&1 \
     | grep -iE 'error|needs target feature|note' || true
 S="$(ls "$TMP"/*"$ARCH"*.s 2>/dev/null | head -1 || true)"
 [ -n "$S" ] || { echo "!! no device ISA emitted (compile failed — see feature gate above)"; exit 1; }

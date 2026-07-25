@@ -16,7 +16,6 @@ OUT="$(mktemp -d)"; SDIR="$OUT/s"; mkdir -p "$SDIR"
 
 # 1) candidate compute kernels: matmul / attention / quant / convert families + any file
 #    that references a matrix/dot intrinsic in source (where wmma/swmmac/dot8 can appear).
-GSRC="$(dirname "$(python3 -c "import json;print(json.load(open('$CC'))[0]['file'])")")"
 mapfile -t CAND < <(python3 - "$CC" <<'PY'
 import json,sys,re
 cc=json.load(open(sys.argv[1]))
