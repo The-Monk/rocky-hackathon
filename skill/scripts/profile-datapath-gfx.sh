@@ -4,11 +4,12 @@
 # INSTRUMENT NOTES (about the TOOL, so you don't lose turns to the same walls — not the answers):
 #  * USE THE SDK-MATCHED rocprofv3, below. Do NOT use /usr/bin/rocprofv3 — version skew vs the ROCm-7.14 app
 #    runtime SEGFAULTS. The SDK v1.3.1 binary works first try where /usr/bin v1.3.2 crashes.
-#  * GL2C_EA_* memory counters read 0 on gfx1201 UNLESS the GPU perf level is 'stable'. NOT broken —
-#    they are gated behind STABLE_STD (rocm-systems#5953). Enable them:
-#      sudo amd-smi set --gpu <N> --perf-level STABLE_STD     # or sysfs: echo profile_standard > .../power_dpm_force_performance_level
-#    VERIFIED on gfx1201 GPU0: GL2C_EA_RDREQ_sum 0 -> 1.1M, GRBM_COUNT 0 -> 3.0M under profile_standard.
-#    Restore with '... --perf-level AUTO' when done. (TA_*, SQ_INSTS_VALU, FETCH_SIZE are gated the same way.)
+#  * GL2C_EA_* memory counters read 0 on gfx1201 under AUTO. NOT broken — gated behind ANY FIXED DPM
+#    profile (rocm-systems#5953). USE profile_PEAK (NOT profile_standard) — it un-gates the counters AND
+#    keeps PEAK clocks (~2330 MHz); profile_standard un-gates too but THROTTLES to ~1593 MHz (suppresses
+#    every benchmark run alongside it). Enable:  echo profile_peak > .../power_dpm_force_performance_level
+#    VERIFIED gfx1201 GPU0 @ profile_peak 2332MHz: GL2C_EA_RDREQ_sum 0 -> 1,319,235 on mul_mat_vec_q(Q2_0).
+#    Restore: echo auto > ... when done. (TA_*, SQ_INSTS_VALU, GRBM_COUNT, FETCH_SIZE gated the same way.)
 #  * SQ_BUSY_CYCLES / GRBM_GUI_ACTIVE ratio is a near-CONSTANT across kernels = fixed topology multiplier,
 #    NOT a per-kernel utilization signal. Don't classify compute/mem from it.
 #  * ROBUST kernel COUNT immune to any rocprofv3 crash: `AMD_LOG_LEVEL=4 <app> 2>log` then grep launch lines
@@ -28,8 +29,8 @@ if [ -n "$GN" ] && [ -e "$GN/power_dpm_force_performance_level" ]; then
     ORIG_PL="$(cat "$GN/power_dpm_force_performance_level" 2>/dev/null)"
     restore(){ [ -n "${ORIG_PL:-}" ] && echo "$ORIG_PL" | sudo tee "$GN/power_dpm_force_performance_level" >/dev/null 2>&1; echo ">> perf-level restored to '$ORIG_PL'"; }
     trap restore EXIT
-    echo profile_standard | sudo tee "$GN/power_dpm_force_performance_level" >/dev/null 2>&1
-    echo ">> perf-level -> profile_standard (STABLE_STD) on $GN (was '$ORIG_PL') — memory counters unlocked"
+    echo profile_peak | sudo tee "$GN/power_dpm_force_performance_level" >/dev/null 2>&1
+    echo ">> perf-level -> profile_peak on $GN (was '$ORIG_PL') — memory counters unlocked AT FULL CLOCKS (profile_standard also un-gates but throttles ~1593 vs peak ~2330 MHz)"
 fi
 # Full working counter set under STABLE_STD: memory (GL2C/FETCH_SIZE) + compute/occupancy (SQ/TA/GRBM).
 HIP_VISIBLE_DEVICES=0 "$RP" --pmc \
