@@ -35,13 +35,22 @@ scripts/scan-isa-gfx.sh <gfx>           # ISA CAPABILITY CENSUS — llvm-mc grou
 ```
 `scan-isa-gfx.sh` classifies every matrix/dot/scale/convert instruction PRESENT vs ABSENT on the exact part, via `llvm-mc` — which **bypasses the clang builtin arity-before-feature false positive** (a bare `(void)__builtin_...` compiles even for GATED builtins; never conclude "available" from a compile-probe alone). Then cross-reference PRESENT-in-silicon vs what the kernels actually emit (`scripts/disasm-gfx.sh`, `scripts/unused-isa-sweep.sh`) = the unexploited-hardware list. That cross-ref is the plan's starting point, not a guess.
 
-| Family | gfx | Primary levers |
+**The whole AMD-AI substrate** — detect the part, then reach for the lever that arch actually has (GPU kernels via the HIP toolkit below; CPU/NPU via the runtime/framework levers noted):
+
+| Class | Target | Primary levers |
 |---|---|---|
-| CDNA 1–3 | gfx908/90a/942/950 | Wave64, MFMA, HBM bandwidth, throughput/batch |
-| RDNA2 | gfx1030 | Wave32, no WMMA — dp4a/dequant only |
-| RDNA3 | gfx1100/1101/1102 | WMMA, Wave32 |
-| RDNA3.5 | gfx1151 | unified-memory APU — bandwidth-starved, byte-width is everything |
-| RDNA4 | gfx1200/1201 | WMMA + SWMMAC (2:4 sparse) + dot8 (int4) + native fp8 |
+| CDNA 1–3 | gfx908/90a/942 | Wave64, **MFMA**, HBM bandwidth, throughput/batch |
+| CDNA 4 | gfx950 (MI350) | MFMA **+ native MX** (MXFP4/6/8 hw scale) + fp4/fp8 scale-convert |
+| RDNA2 | gfx1030 | Wave32, **no WMMA** — dp4a/dequant only |
+| RDNA3 | gfx1100/1101/1102 | **WMMA**, Wave32 |
+| RDNA3.5 | gfx1151 | unified-memory APU — **bandwidth-starved**, byte-width is everything |
+| RDNA4 | gfx1200/1201 | **WMMA + SWMMAC (2:4) + dot8 (int4) + native fp8** — Hyperloom's home |
+| RDNA next-gen | gfx1250 | RDNA4 levers **+ native MX-WMMA + `v_cvt_scalef32_*` scale-convert + fp4/fp6 scale-cvt** — the instructions GATED/absent on gfx1201. **Arch check FLIPS:** skip MX-scale on gfx1201, USE it on gfx1250/gfx950 |
+| Zen CPU | znver3/4/5 — EPYC · **Threadripper** (WX/PRO) · Ryzen | **AVX-512-VNNI** int8 GEMM + BF16, **zentorch**, vLLM-CPU, single-socket pinning; Threadripper = many-core + quad/octa-channel tier |
+| Ryzen AI NPU | XDNA1/2 | int8/int4 on the **AIE** (~10–50 TOPS), Ryzen AI SW / ONNX-RT / **Lemonade**, power-efficient decode offload |
+| **APU** (CPU+iGPU+NPU, one chip) | Strix Halo / Strix Point / Phoenix | **UNIFIED memory** (up to 128GB LPDDR5X, zero-copy) + **HYBRID partition** (NPU=decode, iGPU=prefill, CPU=overflow); bandwidth-starved → aggressive int4/mxfp quant; Lemonade auto-routes. **The whole substrate on one chip.** |
+
+The HIP-kernel toolkit below (scan/disasm/sweep/magpie) applies to the GPU rows; CPU tailoring is runtime (zentorch/vLLM-CPU + NUMA/thread pinning) and NPU tailoring is framework (Ryzen AI / ONNX-RT quantization) — same detect→tailor discipline, different lever.
 
 ## The mission loop — per capability, per gap
 
