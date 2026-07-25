@@ -1,0 +1,8 @@
+# build artifacts
+*.o
+*-hip-amdgcn-*.s
+decode_dp4a
+decode_dot8
+gemm_bench
+prof-out/
+results/*.tmp
