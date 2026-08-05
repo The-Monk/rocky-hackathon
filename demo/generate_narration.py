@@ -33,10 +33,10 @@ OUT   = HERE / "self-narrated" / "narration-cues.json"
 # much you ask for in one call, and >5 lines reliably spirals past the token
 # budget without emitting anything. Small asks terminate.
 SEGMENTS = {
-    "seg-intro":      ("/tmp/tx-seg-intro.txt",   27,  3),
-    "seg-launch":     ("/tmp/tx-launch2.txt",     64,  7),
-    "seg-kernel":     ("/tmp/tx-explain.txt",     62,  7),
-    "demo-operation": ("/tmp/tx-demo-paced.txt", 118, 13),
+    "seg-intro":      ("/tmp/txc-seg-intro.txt",   27,  3),
+    "seg-launch":     ("/tmp/txc-launch2.txt",     64,  7),
+    "seg-kernel":     ("/tmp/txc-explain.txt",     62,  7),
+    "demo-operation": ("/tmp/txc-demo-paced.txt", 118, 13),
 }
 CHUNK = 4
 
@@ -44,6 +44,7 @@ PROMPT = """Write {n} spoken voiceover lines describing this terminal output.
 Use only what is below. Numbers as spoken words. Skip version hashes and paths.
 Say "G F X twelve-oh-one" not "gfx1201".
 Each line MUST be under 14 words. Short, clipped sentences.
+Describe RESULTS and DECISIONS, never build warnings or boilerplate.
 Reply with ONLY a JSON array of {n} strings.
 
 {tx}

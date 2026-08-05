@@ -2,7 +2,7 @@
 Task plugin: find the DFlash draft depth that maximizes decode throughput on this RDNA4 box.
 
 This is the "framework of what we learned" handed to a LOCAL model: the methodology + the hardware
-facts + the DFlash-specific knowledge the earlier assisted session earned — then the model has to
+facts + the DFlash-specific knowledge an earlier assisted session earned — then the model has to
 re-derive the optimum by running real benchmarks itself (it is never told the answer is depth 4).
 
 Pluggable: copy this file, swap SYSTEM/GOAL/TOOLS/execute() to tune a different lever (rpb, quant,

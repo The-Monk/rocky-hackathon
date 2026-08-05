@@ -44,7 +44,7 @@ demo/          Watch the agent optimize a kernel end-to-end, live
 
 ## Practical value beyond the demo
 
-- **Installable.** Hyperloom is packaged as an [Agent Skill](skill/SKILL.md) in AMD's own `amd/skills` standard — it passes `validate_skills.py` with zero errors. Any coding agent can load it and optimize a Radeon kernel. It maps directly to AMD's planned `hyperloom-kernel-optimizer` catalog slot.
+- **Installable.** Hyperloom is packaged as an [Agent Skill](skill/SKILL.md) in AMD's own `amd/skills` standard — it passes `validate_skills.py` with zero errors. Any compatible coding agent can load it and optimize a Radeon kernel. It maps directly to AMD's planned `hyperloom-kernel-optimizer` catalog slot.
 - **Real ecosystem contribution.** While building this, Hyperloom's method surfaced a genuine RDNA4 gap in AMD's own kernel-evaluation tool and filed it upstream with a fix: **AMD-AGI/Magpie#70** (compare-mode perf ranking weights CDNA metrics that read zero on RDNA4).
 - **Honest about limits.** Where the silicon has a real floor (e.g. a fixed ~2.7% sparsity-decode cost that survives every software lever), Hyperloom reports the number and stops — no inflated claims.
 
