@@ -50,8 +50,8 @@ sleep 2
 
 echo "[*] launching xterm running run_demo.sh (PACE=$PACE)"
 DISPLAY="$VDISP" xterm \
-  -geometry 200x54+0+0 \
-  -fa 'DejaVu Sans Mono' -fs 13 \
+  -geometry 142x43+0+0 \
+  -fa 'DejaVu Sans Mono' -fs 19 \
   -bg '#0b0e12' -fg '#d6dae2' \
   -xrm 'xterm*colorBD: #ffffff' \
   -title 'hyperloom — autonomous kernel optimization on AMD Radeon' \

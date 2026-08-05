@@ -68,7 +68,7 @@ echo "  So the production harness prints its own working set and says so:"
 sleep "$PACE"
 "$HIPCC" --offload-arch=gfx1201 -O3 decode_mmvq_iu4.hip -o decode_mmvq_iu4 2>/dev/null
 run "HIP_VISIBLE_DEVICES=0 ./decode_mmvq_iu4 14336 4096"
-echo "  ^ 126% of roofline. That is the harness flagging its own bad number."
+echo "  ^ above 100% of roofline. That is the harness flagging its own bad number."
 
 step "STEP 6 — THE REAL DECODE RESULT (DRAM-honest, production kernel)"
 echo "  k_mmvq_dot8_iu4: one block per row, threads striding K (coalesced),"
