@@ -29,7 +29,7 @@ Reproduce the recording yourself:
 PACE=6 POST=16 ./demo/capture_demo.sh   # or re-record the video
 ```
 
-The capture runs on a virtual X display (`Xvfb :99`) so it does not depend on a desktop session;
+The capture runs on a private, freshly-created virtual X display so it does not depend on a desktop session;
 compute runs on GPU0.
 
 **What the video shows, in order:** detect the silicon → scan the ISA with the assembler as ground

@@ -19,3 +19,10 @@ demo/self-narrated/narration.m4a
 
 # never commit a raw screen capture until it has been checked frame 0 onward
 demo/self-narrated/*-RAW.mp4
+
+# hipcc intermediates (were committed by accident)
+k-hip-amdgcn-*
+k-host-x86_64-*
+k.hip-hip-amdgcn-*
+*.hipi
+*.hipfb
