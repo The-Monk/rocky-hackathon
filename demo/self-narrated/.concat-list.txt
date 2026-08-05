@@ -1,4 +1,4 @@
-file '/home/jmonk/rocky-hackathon/demo/self-narrated/seg-intro-fast.mp4'
-file '/home/jmonk/rocky-hackathon/demo/self-narrated/seg-launch-fast.mp4'
-file '/home/jmonk/rocky-hackathon/demo/self-narrated/seg-kernel-fast.mp4'
-file '/home/jmonk/rocky-hackathon/demo/self-narrated/demo-operation-fast.mp4'
+file '/home/jmonk/rocky-hackathon/demo/self-narrated/seg-intro-narrated.mp4'
+file '/home/jmonk/rocky-hackathon/demo/self-narrated/seg-launch-narrated.mp4'
+file '/home/jmonk/rocky-hackathon/demo/self-narrated/seg-kernel-narrated.mp4'
+file '/home/jmonk/rocky-hackathon/demo/self-narrated/demo-operation-narrated.mp4'
