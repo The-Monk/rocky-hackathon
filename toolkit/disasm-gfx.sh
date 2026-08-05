@@ -19,7 +19,22 @@ ARCH="${2:-gfx1201}"
 RE="${3:-v_wmma|v_swmmac|v_dot[0-9]|v_dual|v_pk_|v_fma|global_load_b|ds_[a-z]+_b|s_endpgm}"
 
 # Resolve the SDK toolchain (TheRock 7.14 pip SDK in qat714, or system ROCm).
-SDK="${ROCM_PATH:-/opt/rocm}"
+# Locate the ROCm/LLVM toolchain. Try the explicit override, then the standard
+# install, then a pip/conda ROCm SDK. FAIL LOUDLY if none has the assembler --
+# a silent empty result is indistinguishable from "the instruction is absent",
+# which is exactly the wrong answer to give a tool that exists to establish truth.
+find_sdk() {
+    local c
+    for c in "${ROCM_PATH:-}" /opt/rocm /usr/lib/rocm \
+             "$HOME"/miniconda3/envs/*/lib/python*/site-packages/_rocm_sdk_devel \
+             "$HOME"/.local/lib/python*/site-packages/_rocm_sdk_devel; do
+        [ -n "$c" ] && [ -x "$c/lib/llvm/bin/llvm-mc" ] && { echo "$c"; return 0; }
+        [ -n "$c" ] && [ -x "$c/llvm/bin/llvm-mc" ]     && { echo "$c"; return 0; }
+    done
+    echo "ERROR: no ROCm toolchain with llvm-mc found. Set ROCM_PATH." >&2
+    return 1
+}
+SDK="$(find_sdk)" || exit 3
 HIPCC="$SDK/bin/hipcc"; [ -x "$HIPCC" ] || HIPCC="$(command -v hipcc)"
 
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT

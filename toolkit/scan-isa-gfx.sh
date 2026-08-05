@@ -9,7 +9,22 @@
 # Usage: scan-isa-gfx.sh [gfx1201]   -> prints a capability map; redirect to save.
 set -euo pipefail
 ARCH="${1:-gfx1201}"
-SDK="${ROCM_PATH:-/opt/rocm}"
+# Locate the ROCm/LLVM toolchain. Try the explicit override, then the standard
+# install, then a pip/conda ROCm SDK. FAIL LOUDLY if none has the assembler --
+# a silent empty result is indistinguishable from "the instruction is absent",
+# which is exactly the wrong answer to give a tool that exists to establish truth.
+find_sdk() {
+    local c
+    for c in "${ROCM_PATH:-}" /opt/rocm /usr/lib/rocm \
+             "$HOME"/miniconda3/envs/*/lib/python*/site-packages/_rocm_sdk_devel \
+             "$HOME"/.local/lib/python*/site-packages/_rocm_sdk_devel; do
+        [ -n "$c" ] && [ -x "$c/lib/llvm/bin/llvm-mc" ] && { echo "$c"; return 0; }
+        [ -n "$c" ] && [ -x "$c/llvm/bin/llvm-mc" ]     && { echo "$c"; return 0; }
+    done
+    echo "ERROR: no ROCm toolchain with llvm-mc found. Set ROCM_PATH." >&2
+    return 1
+}
+SDK="$(find_sdk)" || exit 3
 MC="$SDK/lib/llvm/bin/llvm-mc"; [ -x "$MC" ] || MC="$(command -v llvm-mc)"
 
 probe(){ # $1 = asm line -> PRESENT / ABSENT
