@@ -16,3 +16,6 @@ demo/self-narrated/cap*.txt
 demo/self-narrated/header.txt
 demo/self-narrated/final_audio.m4a
 demo/self-narrated/narration.m4a
+
+# never commit a raw screen capture until it has been checked frame 0 onward
+demo/self-narrated/*-RAW.mp4

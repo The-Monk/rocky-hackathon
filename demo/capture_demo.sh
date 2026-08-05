@@ -15,11 +15,12 @@
 # ============================================================================
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT="${SEGMENT:-$HERE/run_demo.sh}"
 OUT="${1:-$HERE/self-narrated/demo-operation.mp4}"
 VDISP="${VDISP:-:99}"
 W=1920; H=1080
 PACE="${PACE:-3}"
-RAW="/tmp/demo-capture-raw.mkv"
+RAW="/tmp/demo-capture-raw-$$.mkv"
 
 command -v ffmpeg  >/dev/null || { echo "need ffmpeg";  exit 1; }
 command -v xterm   >/dev/null || { echo "need xterm";   exit 1; }
@@ -48,14 +49,14 @@ ffmpeg -y -loglevel error -f x11grab -framerate 25 -video_size ${W}x${H} \
 FFPID=$!
 sleep 2
 
-echo "[*] launching xterm running run_demo.sh (PACE=$PACE)"
+echo "[*] launching xterm running $(basename "$SCRIPT") (PACE=$PACE POST=${POST:-$PACE})"
 DISPLAY="$VDISP" xterm \
   -geometry 142x43+0+0 \
   -fa 'DejaVu Sans Mono' -fs 19 \
   -bg '#0b0e12' -fg '#d6dae2' \
   -xrm 'xterm*colorBD: #ffffff' \
   -title 'hyperloom — autonomous kernel optimization on AMD Radeon' \
-  -e bash -lc "PACE=$PACE '$HERE/run_demo.sh'; echo; echo '  [demo complete]'; sleep 4" &
+  -e bash -lc "PACE=$PACE POST=${POST:-$PACE} TYPE=${TYPE:-0.022} '$SCRIPT'; echo; echo '  [segment complete]'; sleep 3" &
 XTPID=$!
 
 wait "$XTPID" 2>/dev/null
