@@ -8,7 +8,7 @@ This isn't a demo agent. Hyperloom already produced **multiple correctness-clean
 
 | Stage | Optimization | Result (MEASURED, correctness-gated) |
 |---|---|---|
-| **Decode** | native `v_dot8_i32_iu4` int4 GEMV vs the dp4a route | **1.49×** faster, bit-exact vs CPU reference |
+| **Decode** | production int4 GEMV `k_mmvq_dot8_iu4` (block-per-row + LDS reduction, native `v_dot8_i32_iu4`) | **96–97% of the measured 631 GB/s DRAM roofline** — memory-bound and saturating, correctness-gated vs CPU reference. (Instruction-only A/B, dot8 vs dp4a at fixed shape: **2.2×**.) |
 | **Prefill** | int4 2:4-sparse SWMMAC (`v_swmmac_i32_16x16x64_iu4`) full GEMM | **3.67×** vs int8 WMMA @ K=8192 — 88–95% of the raw ISA ceiling, `max_abs_err=0`, `test-backend-ops` 1141/1141 PASS |
 | **Comms** | INT6 inline-compressed all-reduce (dual-GPU tensor-parallel) | exact-integer reduce (~5e-7 drift), ~2.5× compression, bypasses the RCCL gfx1201 tuning gap |
 

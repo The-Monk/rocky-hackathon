@@ -2,18 +2,69 @@
 
 All benchmarks run on an AMD Radeon GPU on ROCm (validated on Radeon AI PRO R9700, gfx1201). Each kernel **correctness-gates against a CPU reference before it reports any throughput** — a fast-but-wrong kernel exits non-zero. Set `HIP_VISIBLE_DEVICES` to a non-display GPU; do not set `ROCR_VISIBLE_DEVICES` (it silently forces CPU fallback).
 
-## 1. Decode — int4 dot8 vs dp4a (1.49×)
+## 1. Decode — the production kernel: 96–97% of the measured memory roofline
 
-Self-contained. Same int4-weight GEMV, two compute routes; both must match the CPU int reference exactly.
+**This is the headline decode result.** `k_mmvq_dot8_iu4` is the kernel that actually
+ships in the roc9 llama.cpp fork (T170): one block per row, threads striding along K
+so adjacent lanes read adjacent blocks (coalesced), then a shared-memory reduction,
+launched `<<<N, 64>>>`. It correctness-gates against a CPU reference before reporting
+any throughput.
 
 ```bash
 cd kernels/decode
+hipcc --offload-arch=gfx1201 -O3 decode_mmvq_iu4.hip -o decode_mmvq_iu4
+HIP_VISIBLE_DEVICES=0 ./decode_mmvq_iu4
+```
+```
+N=65536  K=4096   |  144.0 MiB (DRAM-honest) | 0.2498 ms | 604 GB/s | 96% of roofline | PASS
+N=16384  K=14336  |  126.0 MiB (DRAM-honest) | 0.2156 ms | 613 GB/s | 97% of roofline | PASS
+```
+Roofline reference is **631 GB/s**, the measured streaming DRAM bandwidth of this board
+(our `bw_roofline.cu`, independently cross-checked against ROCm Validation Suite `babel`
+at 598–635 GB/s). At 96–97% there is essentially no headroom left in this kernel — it is
+memory-bound and saturating.
+
+### Why the working-set size is printed, and why you should care
+
+The R9700 has a **64 MiB Infinity Cache**. Any int4 decode benchmark whose weights fit
+inside it measures *cache*, not DRAM, and will happily report a bandwidth **above** the
+DRAM roofline. The harness prints MiB and flags the case:
+
+```bash
+HIP_VISIBLE_DEVICES=0 ./decode_mmvq_iu4 14336 4096
+# N=14336 K=4096 | 31.5 MiB (CACHE-RESIDENT!) | 792 GB/s | 126% of roofline
+```
+126% of roofline is not a win — it is the measurement telling you it read cache. We
+report the DRAM-honest shapes as the result and keep this switch in so the failure mode
+is self-evident rather than flattering.
+
+## 1b. Instruction A/B — native int4 dot8 vs the dp4a route (2.2× at a fixed shape)
+
+A separate, narrower question: with the memory path held constant, how much does the
+native 8-wide `v_dot8_i32_iu4` beat unpacking to int8 and using `v_dot4_i32_iu8`?
+`decode_dot8.hip` and `decode_dp4a.hip` isolate exactly that — identical
+one-thread-per-row harness, only the inner instruction differs, both gated against the
+same CPU int reference.
+
+```bash
 hipcc --offload-arch=gfx1201 -O3 decode_dp4a.hip -o decode_dp4a
 hipcc --offload-arch=gfx1201 -O3 decode_dot8.hip -o decode_dot8
-HIP_VISIBLE_DEVICES=0 ./decode_dp4a     # correctness=PASS, ~250 us, 116 GB/s
-HIP_VISIBLE_DEVICES=0 ./decode_dot8     # correctness=PASS, ~168 us, 173 GB/s  => 1.49x
+HIP_VISIBLE_DEVICES=0 ./decode_dp4a     # PASS, 0.0844 ms
+HIP_VISIBLE_DEVICES=0 ./decode_dot8     # PASS, 0.0380 ms  => 2.2x
 ```
-Or drive it through AMD's Magpie evaluator: `../toolkit/magpie.sh compare -k compare_decode.yaml` (correctness ranking) + `metrix profile` for the gfx1201 duration (see `toolkit/magpie.sh` header for the RDNA4 metrix recipe).
+
+**Scope this claim honestly — it is an instruction comparison, not a kernel result.**
+One thread per row means adjacent lanes land `K/2` bytes apart, which is uncoalesced.
+That is invisible at the default 28 MiB (cache absorbs it) and catastrophic once the
+weights must come from DRAM — at N=65536 both routes collapse to ~17 GB/s and the dot8
+advantage disappears entirely, because both are then bound by the access pattern rather
+than by the instruction. The ratio is a valid answer to "which instruction is faster";
+it is **not** a claim about achievable decode throughput. For that, see §1 — the
+production kernel, which fixes the access pattern and reaches 96–97% of roofline.
+
+Or drive the A/B through AMD's Magpie evaluator: `../toolkit/magpie.sh compare -k compare_decode.yaml`
+(correctness ranking) + `metrix profile` for the gfx1201 duration (see `toolkit/magpie.sh`
+header for the RDNA4 metrix recipe).
 
 ## 2. Prefill — int4 2:4-sparse K64 SWMMAC full GEMM (3.67×)
 
