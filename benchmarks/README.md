@@ -75,7 +75,20 @@ cd kernels/prefill
 hipcc --offload-arch=gfx1201 -O3 -DRDNA4 gemm_bench.hip -o gemm_bench
 HIP_VISIBLE_DEVICES=0 ./gemm_bench       # correctness err=0 for all shapes, then the K sweep
 ```
-Expected (M=N=4096, ILP=4): K=8192 → int4-K64-SWMMAC 50.5 TOPS vs int8-K16-WMMA 13.7 TOPS = **3.67×** (88–95% of the register-resident raw-instruction ceiling of 3.90×). Capture grows with K as fixed overhead amortizes.
+Expected (M=N=4096, ILP=4, WARPS=32, median-of-6). Correctness gates run first and must
+report `max_abs_err=0` for all three kernels at all shapes before any perf number is printed:
+
+```
+K            iu8-K16 dense        iu4-K32 dense        iu4-K64 2:4-SWMMAC   K64/K16
+K=2048    2.699ms/25.5 TOP/s   1.459ms/47.1 TOP/s   1.182ms/58.1 TOP/s   2.283x
+K=4096    5.160ms/26.6 TOP/s   2.739ms/50.2 TOP/s   1.658ms/82.9 TOP/s   3.112x
+K=8192   11.016ms/25.0 TOP/s   5.186ms/53.0 TOP/s   3.002ms/91.6 TOP/s   3.669x
+```
+
+**3.67× at K=8192**, which is 88–95% of the register-resident raw-instruction ceiling of
+3.90×. Capture grows with K as fixed overhead amortizes. TOPS convention is
+`2*M*N*K_logical/time` with `K_logical` the full uncompressed K for all three kernels, so
+the ratios are directly comparable to the ISA ceiling (3.90× vs K16, 1.95× vs K32 dense).
 
 > Note: `-DRDNA4` is required — the SWMMAC/WMMA intrinsics are gated behind `#if defined(RDNA4)`; without it every matrix op silently falls to a zero-returning stub (a bug the correctness gate caught during development).
 
