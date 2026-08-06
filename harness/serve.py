@@ -25,7 +25,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 PORT = int(os.environ.get("HARNESS_PORT", "8770"))
-ROOFLINE = 631.0          # measured streaming DRAM bandwidth, GB/s
+ROOFLINE = float(os.environ.get("ROOFLINE_GBS", "631.0"))
+# 631 GB/s is this machine (R9700 / gfx1201 / discrete GDDR6). It is a property of
+# the hardware, not a constant -- a Strix Halo APU on unified memory is nearer 256.
+# Set ROOFLINE_GBS on another box, or every honest result renders INVALID.
 
 STAGES = ["DETECT", "SCAN", "FIND_GAP", "WRITE", "GATE", "MEASURE", "AUDIT"]
 state = {"stage": None, "stages": STAGES, "tools": [], "gates": [], "metrics": [],
@@ -86,20 +89,35 @@ def run_mission():
     cr = sh("HIP_VISIBLE_DEVICES=0 /tmp/harness_dm 14336 4096 2>/dev/null")
     tool("run_benchmark", "decode_mmvq_iu4 14336 4096 (cache-resident probe)", cr)
     out = out + "\n" + cr
+    # Parse each result line for BOTH its throughput and ITS OWN gate verdict. The
+    # gate token must come from the same line as the number it vouches for -- an
+    # earlier version of this file computed one boolean over the whole output and
+    # stamped it onto every metric, which is exactly the thing this page claims it
+    # will not do. A line with no verdict yields a metric with no gate, and renders
+    # UNVERIFIED.
     for line in out.splitlines():
         m = re.search(r"N=(\d+)\s+K=(\d+).*?([\d.]+)\s*MiB.*?\|\s*([\d.]+)\s*GB/s", line)
-        if m:
-            n, k, ws, gbs = m.group(1), m.group(2), float(m.group(3)), float(m.group(4))
-            emit(metrics=[{"label": f"decode N={n} K={k}", "value": gbs, "unit": "GB/s",
-                           "roofline": ROOFLINE, "working_set_mib": ws}])
+        if not m:
+            continue
+        n, k, ws, gbs = m.group(1), m.group(2), float(m.group(3)), float(m.group(4))
+        label = f"decode N={n} K={k}"
+        emit(metrics=[{"label": label, "value": gbs, "unit": "GB/s",
+                       "roofline": ROOFLINE, "working_set_mib": ws}])
+        err = re.search(r"max_rel_err\s*=?\s*([\deE.+-]+)", line)
+        verdict = re.search(r"\b(PASS|FAIL)\b", line)
+        state.setdefault("_pending_gates", []).append({
+            "name": f"correctness {label}", "metric": label,
+            "passed": bool(verdict and verdict.group(1) == "PASS"),
+            "detail": (f"checked against CPU reference on this shape, "
+                       f"max_rel_err={err.group(1)}" if err and verdict
+                       else "NO GATE ON THIS LINE -- number stays unverified")})
     time.sleep(2)   # the page renders them UNVERIFIED before any gate lands
 
     emit(stage="GATE")
-    passed = "PASS" in out and "max_rel_err" in out
-    for mtr in list(state["metrics"]):
-        emit(gates=[{"name": f"correctness {mtr['label']}", "metric": mtr["label"],
-                     "passed": bool(passed),
-                     "detail": "bit-checked against CPU reference" if passed else "no gate result"}])
+    # Each gate was read off the same output line as the metric it names. Nothing
+    # here is synthesised from a global flag.
+    for g in state.pop("_pending_gates", []):
+        emit(gates=[g])
 
     emit(stage="AUDIT")
     inval = [m for m in state["metrics"] if m["value"] > m["roofline"]]
