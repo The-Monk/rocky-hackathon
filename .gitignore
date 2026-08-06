@@ -38,3 +38,13 @@ demo/self-narrated/.narr-*/
 __pycache__/
 *.pyc
 kernels/decode/decode_mmvq_iu4
+
+# agent_repro: compiled probes and regenerable golden data
+kernels/decode/agent_repro/**/*.bin
+kernels/decode/agent_repro/_probe_*
+kernels/decode/agent_repro/golden_gen
+kernels/decode/agent_repro/golden_gen_*
+kernels/decode/agent_repro/repro
+kernels/decode/agent_repro/**/repro_*
+!kernels/decode/agent_repro/**/repro_harness.cu
+kernels/decode/agent_repro/agent_kernel.cuh
