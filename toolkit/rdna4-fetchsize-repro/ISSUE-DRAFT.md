@@ -2,15 +2,22 @@
 
 ## Summary
 
-`rocprofiler-sdk` ships no `gfx12` section in `basic_counters.xml` or
-`derived_counters.xml`. Counter names still resolve — they fall through to the
-gfx11 definitions — but the gfx11 event IDs do not describe RDNA4, so the
-derived metrics evaluate to **0 and report that as a measurement** rather than
-failing.
+`FETCH_SIZE` returns **0** on gfx1201 for a workload that provably reads
+hundreds of MiB — a wrong answer presented as a measurement rather than an
+error.
 
-Root cause, measured: **RDNA4 issues EA read requests at a fixed 256 B**, so the
-32/64/96/128 B request buckets that gfx11's `FETCH_SIZE` is built from do not
-exist on this hardware and always read zero.
+Two facts are established. First, `rocprofiler-sdk` ships **no `gfx12` section**
+in `basic_counters.xml` or `derived_counters.xml` (verified against
+`ROCm/rocm-systems` `develop`), yet counter names still resolve for gfx1201 —
+via a fallback path we could not identify. Second, **EA read requests on this
+chip measure 256 B**, established by a falsification test using a stride smaller
+than the request itself, so `FETCH_SIZE`'s constituent 32/64/96/128 B buckets
+reporting zero may be *correct behaviour* rather than breakage.
+
+We deliberately do **not** claim to know which. Distinguishing "buckets absent",
+"buckets remapped to other event IDs" and "buckets correctly reporting zero"
+requires the gfx12 event tables, which are not public — and that is what this
+report asks for.
 
 This is distinct from, and not fixed by, the perf-level requirement documented in
 rocm-systems#7455 (which closed rocm-systems#5953). That documentation is
