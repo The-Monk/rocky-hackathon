@@ -58,7 +58,11 @@ PY
   local cmd dir; cmd="$(printf '%s\n' "$line" | sed -n 1p)"; dir="$(printf '%s\n' "$line" | sed -n 2p)"
   [ -z "$cmd" ] && return
   ( cd "$dir" && timeout 400 bash -c "$cmd --save-temps=obj" >/dev/null 2>&1 )
-  local s; s="$(find "$BUILD" -name "*$(basename "$f" .cu)*$ARCH*.s" 2>/dev/null | head -1)"
+  # Anchor the basename to the START of the filename. "*<name>*<arch>*.s" let a
+  # short candidate like mmq.cu match every mmq-instance-*.s, and head -1 picked
+  # an arbitrary one -- so sources were represented by other sources' assembly.
+  local b; b="$(basename "$f" .cu)"
+  local s; s="$(find "$BUILD" -name "${b}-hip-amdgcn*${ARCH}.s" 2>/dev/null | head -1)"
   [ -n "$s" ] && cp "$s" "$SDIR/$(basename "$f" .cu).s" 2>/dev/null
 }
 export -f compile_one; export CC BUILD ARCH SDIR
@@ -69,7 +73,15 @@ echo "kernels with emitted ISA: $(ls "$SDIR" 2>/dev/null | wc -l)"
 # is broken. v_dot4_i32_iu8 (dp4a) is the production decode path and MUST appear
 # in thousands of places. If it does not, the counting is wrong -- fail loudly
 # rather than emit a confident all-clear.
-_probe=$(grep -rciE "\\bv_dot4_i32_iu8\\b" "$SDIR"/*.s 2>/dev/null | awk -F: '{s+=$2} END{print s+0}')
+_probe=$(grep -rcoE "(^|[[:space:]])v_dot4_i32_iu8[a-z0-9_]*" "$SDIR"/*.s 2>/dev/null | awk -F: '{s+=$2} END{print s+0}')
+# Second probe on a SUFFIXED mnemonic. v_wmma_f32_16x16x16_fp8 is emitted as
+# _fp8_fp8; an earlier word-boundary anchor silently reported it as unused and a
+# bare-name probe would not have caught that.
+_probe2=$(grep -rcoE "(^|[[:space:]])v_wmma_f32_16x16x16_fp8[a-z0-9_]*" "$SDIR"/*.s 2>/dev/null | awk -F: '{s+=$2} END{print s+0}')
+if [ "${_probe2:-0}" -eq 0 ]; then
+  echo "FATAL: suffixed-mnemonic probe found 0; matching is dropping suffixes." >&2
+  exit 5
+fi
 if [ "${_probe:-0}" -eq 0 ]; then
   echo "FATAL: sanity probe found 0 uses of v_dot4_i32_iu8, which is the production" >&2
   echo "       decode path. The counting method is broken; refusing to report." >&2
@@ -94,7 +106,10 @@ for op in "${CENSUS[@]}"; do
     # llvm-objdump on them returns NOTHING, silently -- no error, no warning -- so
     # every count came back 0 and the sweep reported the entire ISA as unused,
     # including instructions with thousands of emissions. Grep the text directly.
-    c=$(grep -ciE "\\b$op\\b" "$s" 2>/dev/null || echo 0)
+    # Match the mnemonic as a PREFIX. Real mnemonics carry a second type suffix --
+    # v_wmma_f32_16x16x16_fp8 is emitted as _fp8_fp8 / _fp8_bf8 -- so a \b anchor
+    # after the name matches nothing and reports a live instruction as unused.
+    c=$(grep -coE "(^|[[:space:]])$op[a-z0-9_]*" "$s" 2>/dev/null || echo 0)
     if [ "$c" -gt 0 ]; then total=$((total+c)); hits="$hits $(basename "$s" .s):$c"; fi
   done
   if [ "$total" -eq 0 ]; then printf "%-30s %8s   *** UNUSED (in silicon, 0 uses) ***\n" "$op" "0"
