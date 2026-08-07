@@ -65,6 +65,18 @@ export -f compile_one; export CC BUILD ARCH SDIR
 printf '%s\n' "${CAND[@]}" | xargs -P 16 -I{} bash -c 'compile_one "{}"'
 echo "kernels with emitted ISA: $(ls "$SDIR" 2>/dev/null | wc -l)"
 
+# SANITY GATE: a sweep that finds nothing is indistinguishable from a sweep that
+# is broken. v_dot4_i32_iu8 (dp4a) is the production decode path and MUST appear
+# in thousands of places. If it does not, the counting is wrong -- fail loudly
+# rather than emit a confident all-clear.
+_probe=$(grep -rciE "\\bv_dot4_i32_iu8\\b" "$SDIR"/*.s 2>/dev/null | awk -F: '{s+=$2} END{print s+0}')
+if [ "${_probe:-0}" -eq 0 ]; then
+  echo "FATAL: sanity probe found 0 uses of v_dot4_i32_iu8, which is the production" >&2
+  echo "       decode path. The counting method is broken; refusing to report." >&2
+  exit 4
+fi
+echo "sanity probe: v_dot4_i32_iu8 found $_probe times -- counting is live"
+
 # 3) cross-ref: every PRESENT-in-HW instruction -> total emitted + which kernels
 declare -a CENSUS=(
   v_wmma_f32_16x16x16_f16 v_wmma_f32_16x16x16_bf16 v_wmma_f32_16x16x16_fp8 v_wmma_f32_16x16x16_bf8
@@ -78,7 +90,11 @@ for op in "${CENSUS[@]}"; do
   total=0; hits=""
   for s in "$SDIR"/*.s; do
     [ -e "$s" ] || continue
-    c=$("$OBJD" -d --mcpu="$ARCH" "$s" 2>/dev/null | grep -ciE "$op")
+    # The saved artefacts are ASSEMBLY TEXT (.s), already human-readable. Running
+    # llvm-objdump on them returns NOTHING, silently -- no error, no warning -- so
+    # every count came back 0 and the sweep reported the entire ISA as unused,
+    # including instructions with thousands of emissions. Grep the text directly.
+    c=$(grep -ciE "\\b$op\\b" "$s" 2>/dev/null || echo 0)
     if [ "$c" -gt 0 ]; then total=$((total+c)); hits="$hits $(basename "$s" .s):$c"; fi
   done
   if [ "$total" -eq 0 ]; then printf "%-30s %8s   *** UNUSED (in silicon, 0 uses) ***\n" "$op" "0"
