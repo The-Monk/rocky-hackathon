@@ -1,0 +1,10 @@
+# Falsification test for the 256 B request-size claim.
+# Stride is SMALLER than the putative request so the hypotheses diverge.
+
+  1,048,576 elements @ 128 B stride
+    measured                 524,298 requests
+    predicted if 256 B       524,288    ratio 1.000  <- confirmed
+    predicted if 128 B     1,048,576    ratio 0.500
+
+# Two earlier designs failed to discriminate (both hypotheses predicted the
+# same count). Recorded so the mistake is not repeated.

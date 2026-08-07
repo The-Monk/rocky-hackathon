@@ -62,8 +62,40 @@ out "profiling was not enabled" as an explanation.
 | 256 MiB | 1,048,586 | **256.0** |
 | 512 MiB | 2,097,162 | **256.0** |
 
-No drift across an 8x range. The aggregate counter is accurate; only the
-size-bucketed variants are absent.
+No drift across an 8x range.
+
+**Falsification test.** Streaming alone cannot distinguish "256 B requests" from
+"the counter tracks lines touched". A second test uses a stride *smaller* than
+the putative request, so the hypotheses diverge: 1,048,576 elements read at a
+128 B stride gives 524,298 requests, against 524,288 predicted for a 256 B
+request and 1,048,576 for a 128 B request (ratios 1.000 and 0.500). Reproducer:
+`falsification_probe.hip`.
+
+**Unverified premise.** The event identity behind `GL2C_EA_RDREQ_sum` on gfx1201
+is unknown — with no gfx12 definitions, the name resolves via a fallback we could
+not locate. The arithmetic is self-consistent across five access patterns, but
+that is evidence about behaviour, not confirmation of which hardware event is
+being read.
+
+## An important caveat on the "dead buckets" reading
+
+An earlier draft of this report called the zero-valued `GL2C_EA_RDREQ_32B_sum` /
+`_64B_sum` evidence that the buckets are *absent* on RDNA4. That claim
+contradicts the rest of the report and is withdrawn.
+
+If EA requests really are a fixed 256 B, then a workload issuing only 256 B
+requests **should** report zero 32 B and 64 B requests — that is correct
+behaviour, not breakage. The two observations cannot both be used as evidence.
+
+What remains defensible is narrower:
+
+* `FETCH_SIZE` evaluates to 0 for a workload that provably reads hundreds of MiB.
+  Whatever the cause, that is a wrong answer presented as a measurement.
+* There is no `gfx12` section in either counter XML, so whatever resolves these
+  names for gfx1201 is a fallback path we could not identify.
+* The 32B/64B buckets may be absent, may be remapped to different event IDs, or
+  may be correctly reporting zero. **We cannot distinguish these without the
+  gfx12 event tables**, which is precisely what this report asks for.
 
 ## Why the derived metric collapses
 

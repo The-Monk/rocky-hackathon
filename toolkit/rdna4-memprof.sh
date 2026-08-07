@@ -12,9 +12,25 @@
 #   FETCH_SIZE               always 0     <- derived from the dead buckets
 #
 # THE FIX
-# RDNA4 issues EA read requests at a fixed 256 B. Measured against known
-# streaming loads of 64/128/256/512 MiB, GL2C_EA_RDREQ_sum reports exactly
-# 256.0 bytes/request in every case. So:
+# RDNA4 EA read requests appear to be 256 B (two 128 B lines). Measured two ways:
+#
+#   (a) coalesced streaming at 64/128/256/512 MiB -> exactly 256.0 bytes/request
+#   (b) FALSIFICATION TEST, which is the one that counts: 1,048,576 elements read
+#       at a 128 B stride -- i.e. a stride SMALLER than the putative request, so a
+#       256 B request covers two elements and a 128 B request covers one. Measured
+#       524,298 requests against 524,288 predicted for 256 B and 1,048,576 for
+#       128 B. Ratio 1.000 vs 0.500.
+#
+# Two earlier attempts at that falsification were worthless because both
+# hypotheses predicted the same count -- if you re-run this, check your test
+# actually discriminates before trusting it.
+#
+# CAVEAT that survives: the counter's event identity is unverified. No gfx12
+# counter definitions exist in rocprofiler-sdk, so what GL2C_EA_RDREQ_sum
+# actually programs on gfx1201 comes from a fallback nobody has identified. The
+# arithmetic is self-consistent across five patterns, which is evidence but not
+# proof of what the hardware calls it. Treat 256 as calibrated-here, not as a
+# published constant.
 #
 #     FETCH_SIZE_KB = GL2C_EA_RDREQ_sum * 256 / 1024
 #
